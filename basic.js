@@ -22,6 +22,7 @@ function updateGamestate(req, res) {
   if(validate(req.body.username, req.body.password)) {
     console.log(req.body.profile);
     accounts[req.body.username].profile = req.body.profile;
+    accounts[req.body.username].profile.date = new Date(accounts[req.body.username].profile.date);
     console.log(accounts);
     sendLoginMessage(res, "Success");
     return;
@@ -34,6 +35,46 @@ function updateGamestate(req, res) {
     return;
   }
 }
+
+function getLatestSaveGame(req, res, next) {
+
+  console.log("REUEST---");
+
+  if(!validate(req.body.username, req.body.password, res)) {
+    sendErrorMessage(res, "Unvalidated access");
+    return;
+  }
+
+  if(!(('profile') in req.body)) {
+    console.log("No savestate in local");
+    return;
+  }
+
+  if(!(('profile') in accounts[req.body.username])) {
+    console.log("No savestate in cloud");
+    return;
+  }
+
+
+  var givenDate = new Date(req.body.profile.date);
+  var username = req.body.username;
+
+  if(givenDate.getTime() > accounts[username].profile.date) {
+    console.log("Client savegame is more recent");
+  } else if(givenDate.getTime() < accounts[username].profile.date) {
+    console.log("Server savegame is more recent")
+  } else {
+    console.log("Both are the same");
+  }
+
+  sendGameState(res, accounts[username].profile);
+
+}
+
+function sendGameState(a, b) {
+
+}
+
 
 function validate(username, password, res) {
   if (!(username in accounts)) {
@@ -53,6 +94,8 @@ function loginProcess(req, res, next) {
     return;
   } else {
     sendErrorMessage(res, 'Wrong username or password.');
+    console.log("logged in with " + req.body.username + " and  " + req.body.password);
+    console.log(accounts);
     return;
   };
 
@@ -92,6 +135,7 @@ function registerRequestProcess(req, res, next) {
           console.log(accounts);
     });
 
+  console.log("logged in with " + req.body.username + " and  " + req.body.password);
   console.log(accounts);
   sendLoginMessage(res, "Account registered successful");
 }
@@ -117,6 +161,7 @@ server.post('/register/:none', registerRequestProcess);
 server.post('/login/:none', loginProcess);
 
 server.post('/state/:none', updateGamestate);
+server.post('/stateRequest/:none', getLatestSaveGame);
 
 server.head('/hello/:name', respond);
 
