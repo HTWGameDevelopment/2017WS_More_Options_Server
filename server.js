@@ -10,6 +10,7 @@ var MongoClient = require('mongodb').MongoClient;
 var BAD_REQUEST_TAG = "[BAD REQUEST]";
 var REGISTER_TAG = "[REGISTER]";
 var ERROR_TAG = "[ERROR]";
+var SUCCESS_TAG = "[SUCCESS]";
 
 
 //ServerData
@@ -39,29 +40,76 @@ server.get('/', function(req, res, next) {
 
 server.post('/register',
   function(req, res, next) {
-    console.log(REGISTER_TAG + "Received request");
-    if (!('password' in req.body) || !('username' in req.body)) {
-      console.log('Invalid request! Field pw or username was not set!');
-      sendBadRequest(res, "No Password or username was sent");
-      return;
+    if(isRequestWellFormed(req)) {
+        if(validateEmail(req.body.username)) return next();
+        else sendBadRequest(res, "Invalid Email");
+    } else {
+      sendBadRequest(res, "Missing Password or Email");
     }
-
-    if(validateEmail(req.body.username)) return next();
-    else sendBadRequest(res, "Invalid Email");
-
   },
   function(req, res, next) {
     dbo.collection(collectionName).findOne({email : req.body.username}, function(err, result) {
+        console.log("Error happens here");
         if (err) throw err;
         if(result == null) {
-          sendBadRequest(res, "Fick dich");
+          return next();
         } else {
           sendErrorMessage(res, "Email already registered");
         }
-        return next();
       });
+  },
+  function(req, res, next) {
+    bcrypt.genSalt(saltRounds, function(err, salt) {
+        bcrypt.hash(req.body.username, salt,null, function(err, hash) {
+          if(err) throw err;
+          else {
+            var user = new User(req.body.username, hash);
+            accounts[user.email] = user;
+            registerUserMongoDB(user, next);
+          }
+        });
+    });
+  },
+  function(req, res, next) {
+      sendSuccessMessage(res, "Registered successfully");
   }
 );
+
+server.post('/login',
+    function(req,res,next) {
+      if(isRequestWellFormed(req)) {
+        var user = new User(req.body.username, req.body.password);
+
+        verifyUser(res, user, next);
+      } else sendBadRequest(res, "Invalid LoginData");
+    }
+
+);
+
+function verifyUser(res, user, next) {
+  if(user.email in accounts) {
+    // User ist lokal im accounts-Array
+    // Vergleiche Passwörter
+    verifyLoginData(res, user, next);
+  } else {
+    // User nicht in lokal --> Check DB
+    findUser(res, user, next);
+  }
+}
+
+
+//TODO: <<< TODO <<< TODO -> check both user objects
+function verifyLoginData(res, user, next) {
+
+  var compareUser = accounts[user.email];
+
+  bcrypt.compare(user.password, compareUser.password, function(err, result) {
+    if(result) next();
+    else sendBadAuthentication(res, "Wrong password");
+  });
+}
+
+
 
 //server.post('/register/:none', register);
 //server.post('/login/:none', login);
@@ -87,8 +135,34 @@ function connectToMongoDB() {
   });
 }
 
+function registerUserMongoDB(user, next) {
+  dbo.collection(collectionName).insertOne(user, function(err, res) {
+    if (err) throw err;
+    console.log("Inserted User: " + user + "into Database");
+    return next();
+  });
+}
+
+function findUser(res, user, next) {
+  dbo.collection(collectionName).findOne({email : user.email}, function(err, result) {
+    if (err) throw err;
+    console.log("Found User: " + user);
+
+    if (result == null) {
+      sendBadAuthentication(res, "No User found");
+    } else {
+      accounts[user.email] = result;
+      verifyLoginData(res, user, next);
+    }
+  });
+}
+
 //Helperfunctions
 
+function sendBadAuthentication(res, error) {
+  res.send(401, {message: error});
+  console.log(BAD_REQUEST_TAG + error);
+}
 function sendBadRequest(res, error) {
   res.send(400, {message: error});
   console.log(BAD_REQUEST_TAG + error);
@@ -99,9 +173,35 @@ function sendErrorMessage(res, error) {
   console.log(ERROR_TAG + error);
 }
 
+function sendSuccessMessage(res, error) {
+  res.send(200, {message: error});
+  console.log(SUCCESS_TAG + error);
+}
+
 function validateEmail(email) {
   var re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
   return re.test(email.toLowerCase());
+}
+
+function isRequestWellFormed(req) {
+  if (!('password' in req.body) || !('username' in req.body)) {
+    console.log('Invalid request! Field pw or username was not set!');
+    sendBadRequest(res, "No Password or username was sent");
+    return false;
+  }
+  return true;
+}
+
+//Constructors
+
+function User(useremail, passwordHash) {
+
+  var user = {
+    email : useremail,
+    password : passwordHash
+  };
+  return user;
+
 }
 
 //ENTRY POINT
