@@ -40,6 +40,7 @@ server.get('/', function(req, res, next) {
 
 server.post('/register',
   function(req, res, next) {
+    console.log("Call to register"); 
     if(isRequestWellFormed(req)) {
         if(validateEmail(req.body.username)) return next();
         else sendBadRequest(res, "Invalid Email");
@@ -77,6 +78,7 @@ server.post('/register',
 
 server.post('/login',
     function(req,res,next) {
+      console.log("Call to login");
       if(isRequestWellFormed(req)) {
         var user = new User(req.body.username, req.body.password);
 
@@ -89,6 +91,7 @@ server.post('/login',
 
 server.post('/updateGamestate',
   function(req, res, next) {
+    console.log("Call to updateGamestate");
     if (isRequestWellFormed(req)
         && 'profile' in req.body) {
           var user = new User(req.body.username, req.body.password);
@@ -104,6 +107,32 @@ server.post('/updateGamestate',
       // aktualisiere DB
       updateUserProfile(req.body.username, req.body.profile);
     }
+);
+
+server.get('/compare/:username',
+  function(req, res, next) {
+    console.log("Call to compare");
+    console.log("ReqParamsUsername: " + req.params.username);
+    // ist user mit der email lokal vorhanden
+    var username = req.params.username;
+    if (username in accounts) {
+      var profile = accounts[user.email].profile;
+      // username lokal vorhanden --> schicke profil vom Spieler
+      sendGamestate(res, profile);
+    } else {
+      // Prüfe ob Username in DB vorhanden
+      findUserWithoutVerification(req, res, username, next);
+    }
+  }, function(req, res, next) {
+    console.log("ReqProfile: " + req.profile);
+    sendGamestate(res, req.profile);
+  }
+);
+
+server.get('/getLatestSaveGame',
+  function() {
+    console.log("Call to getLatestSaveGame");
+  }
 );
 
 function verifyUser(res, user, next) {
@@ -167,6 +196,19 @@ function registerUserMongoDB(user, next) {
   });
 }
 
+function findUserWithoutVerification(req, res, emailParam, next) {
+  dbo.collection(collectionName).findOne({email: emailParam}, function(err, result) {
+    if (err) throw err;
+    console.log("Found User: " + result.email);
+    req.profile = result.profile;
+    return next();
+
+    if (result == null) {
+      sendBadAuthentication(res, "No User found");
+    }
+  });
+}
+
 function findUser(res, user, next) {
   dbo.collection(collectionName).findOne({email : user.email}, function(err, result) {
     if (err) throw err;
@@ -183,12 +225,8 @@ function findUser(res, user, next) {
 
 function updateUserProfile(emailParam, profileParam) {
   var query = { email: emailParam};
-  console.log("EmailParam" + emailParam);
-  console.log("ProfileParam: " + profileParam);
   var newVal = { $set: {profile: profileParam}};
   dbo.collection(collectionName).updateOne(query, newVal, function(err) {
-    console.log("Query: " + query);
-    console.log("NewProfile: " + newVal.$set.profile);
     if (err) throw err;
     console.log("Updated UserProfile");
   });
@@ -213,6 +251,11 @@ function sendErrorMessage(res, error) {
 function sendSuccessMessage(res, error) {
   res.send(200, {message: error});
   console.log(SUCCESS_TAG + error);
+}
+
+function sendGamestate(res, profileParam) {
+  res.send(200, {profile: profileParam});
+  console.log("Gamestate sent successfully");
 }
 
 function validateEmail(email) {
