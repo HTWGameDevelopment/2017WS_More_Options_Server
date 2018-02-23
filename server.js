@@ -59,14 +59,16 @@ server.post('/register',
       });
   },
   function(req, res, next) {
-      bcrypt.hash(req.body.username, null,null, function(err, hash) {
-        if(err) throw err;
-        else {
-          var user = new User(req.body.username, hash);
-          accounts[user.email] = user;
-          registerUserMongoDB(user, next);
-        }
-      });
+    bcrypt.genSalt(saltRounds, function(err, salt) {
+        bcrypt.hash(req.body.password, salt,null, function(err, hash) {
+          if(err) throw err;
+          else {
+            var user = new User(req.body.username, hash);
+            accounts[user.email] = user;
+            registerUserMongoDB(user, next);
+          }
+        });
+    });
   },
   function(req, res, next) {
       sendSuccessMessage(res, "Registered successfully");
@@ -80,6 +82,8 @@ server.post('/login',
 
         verifyUser(res, user, next);
       } else sendBadRequest(res, "Invalid LoginData");
+    }, function(req, res, next) {
+      sendSuccessMessage(res, "Login successful");
     }
 );
 
@@ -87,7 +91,9 @@ server.post('/updateGamestate',
   function(req, res, next) {
     if (isRequestWellFormed(req)
         && 'profile' in req.body) {
-          var user = new User(req.body.name, req.body.password);
+          var user = new User(req.body.username, req.body.password);
+          var profile = req.body.profile;
+          console.log("ProfileLog: " + profile);
           verifyUser(res, user, next);
         } else {
           sendBadRequest(res, "Invalid Request");
@@ -96,7 +102,7 @@ server.post('/updateGamestate',
       sendSuccessMessage(res, "Updated profile successfully");
 
       // aktualisiere DB
-      updateUserProfile(req.body.name, req.body.profile);
+      updateUserProfile(req.body.username, req.body.profile);
     }
 );
 
@@ -111,8 +117,6 @@ function verifyUser(res, user, next) {
   }
 }
 
-
-//TODO: <<< TODO <<< TODO -> check both user objects
 function verifyLoginData(res, user, next) {
   console.log("userPW: " + user.password);
   console.log("serverPW" + accounts[user.email].password);
@@ -124,10 +128,9 @@ function verifyLoginData(res, user, next) {
     if(result) next();
     else {
       console.log(bcrypt.compareSync(user.password, compareUser.password));
+      sendBadAuthentication(res, "Wrong password");
     }
-    sendBadAuthentication(res, "Wrong password");
   });
-
 }
 
 
@@ -167,7 +170,7 @@ function registerUserMongoDB(user, next) {
 function findUser(res, user, next) {
   dbo.collection(collectionName).findOne({email : user.email}, function(err, result) {
     if (err) throw err;
-    console.log("Found User: " + user);
+    console.log("Found User: " + user.email);
 
     if (result == null) {
       sendBadAuthentication(res, "No User found");
@@ -180,8 +183,12 @@ function findUser(res, user, next) {
 
 function updateUserProfile(emailParam, profileParam) {
   var query = { email: emailParam};
+  console.log("EmailParam" + emailParam);
+  console.log("ProfileParam: " + profileParam);
   var newVal = { $set: {profile: profileParam}};
   dbo.collection(collectionName).updateOne(query, newVal, function(err) {
+    console.log("Query: " + query);
+    console.log("NewProfile: " + newVal.$set.profile);
     if (err) throw err;
     console.log("Updated UserProfile");
   });
