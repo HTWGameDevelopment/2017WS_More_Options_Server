@@ -40,7 +40,7 @@ server.get('/', function(req, res, next) {
 
 server.post('/register',
   function(req, res, next) {
-    console.log("Call to register"); 
+    console.log("Call to register");
     if(isRequestWellFormed(req)) {
         if(validateEmail(req.body.username)) return next();
         else sendBadRequest(res, "Invalid Email");
@@ -50,7 +50,6 @@ server.post('/register',
   },
   function(req, res, next) {
     dbo.collection(collectionName).findOne({email : req.body.username}, function(err, result) {
-        console.log("Error happens here");
         if (err) throw err;
         if(result == null) {
           return next();
@@ -129,9 +128,42 @@ server.get('/compare/:username',
   }
 );
 
-server.get('/getLatestSaveGame',
-  function() {
-    console.log("Call to getLatestSaveGame");
+server.post('/latestSaveGame',
+  function(req, res, next) {
+    console.log("Call to latestSaveGame");
+    console.log("ReqParamsUsername: " + req.body.username);
+    // ist user lokal vorhanden
+    var username = req.body.username;
+    var profile;
+    if (username in accounts) {
+      // user lokal vorhanden --> nimm aktuellstes SaveGame
+      console.log("latestSaveGame: user available locally");
+      profile = accounts[user.email].profile;
+
+      // prüfe, welches Profil aktueller ist
+      if (isServerProfileMoreRecent(req.profile, profile)) {
+        // Server ist aktueller
+        console.log("latestSaveGame: Server is more recent");
+        sendGamestate(res, profile);
+      } else {
+        // Client ist aktueller
+        console.log("latestSaveGame: Client is more recent");
+        sendGamestate(res, req.profile);
+      }
+    } else {
+      // Prüfe ob user in DB vorhanden
+      profile = getUserFromDatabase(req, res, username, next);
+
+      if (isServerProfileMoreRecent(req.profile, profile)) {
+        // Server ist aktueller
+        console.log("latestSaveGame: Server is more recent");
+        sendGamestate(res, req.profile);
+      } else {
+        // DB-Client ist aktueller
+        console.log("latestSaveGame: DB-Client is more recent");
+        sendGameState(res, profile);
+      }
+    }
   }
 );
 
@@ -196,6 +228,19 @@ function registerUserMongoDB(user, next) {
   });
 }
 
+function getUserFromDatabase(req, res, emailParam, next) {
+  dbo.collection(collectionName).findOne({email: emailParam}, function(err, result) {
+    if (err) throw err;
+    console.log("Found User: " + result.email);
+    req.profile = result.profile;
+    return result.profile;
+
+    if (result == null) {
+      sendBadAuthentication(res, "No User found");
+    }
+  });
+}
+
 function findUserWithoutVerification(req, res, emailParam, next) {
   dbo.collection(collectionName).findOne({email: emailParam}, function(err, result) {
     if (err) throw err;
@@ -230,6 +275,16 @@ function updateUserProfile(emailParam, profileParam) {
     if (err) throw err;
     console.log("Updated UserProfile");
   });
+}
+
+function isServerProfileMoreRecent(clientProfile, serverProfile) {
+  console.log("Client: " + clientProfile);
+  console.log("Server: " + serverProfile);
+
+  var cDate = new Date(clientProfile.date);
+  var sDate = new Date(serverProfile.date);
+
+  return (sDate.getTime() > cDate.getTime());
 }
 
 //Helperfunctions
