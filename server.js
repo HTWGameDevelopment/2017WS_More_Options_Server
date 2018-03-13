@@ -115,9 +115,13 @@ server.get('/compare/:username',
     // ist user mit der email lokal vorhanden
     var username = req.params.username;
     if (username in accounts) {
-      var profile = accounts[user.email].profile;
-      // username lokal vorhanden --> schicke profil vom Spieler
-      sendGamestate(res, profile);
+      if (!doesProfileExist(username)) {
+         return sendServiceUnavailable(res, "Profile not found");
+      } else {
+        var profile = accounts[user.email].profile;
+        // username lokal vorhanden --> schicke profil vom Spieler
+        sendGamestate(res, profile);
+      }
     } else {
       // Prüfe ob Username in DB vorhanden
       findUserWithoutVerification(req, res, username, next);
@@ -133,27 +137,28 @@ server.post('/latestSaveGame',
     console.log("Call to latestSaveGame");
     console.log("ReqParamsUsername: " + req.body.username);
     // ist user lokal vorhanden
-    var username = req.body.username;
-    var profile;
-    if (username in accounts) {
-      // user lokal vorhanden --> nimm aktuellstes SaveGame
-      console.log("latestSaveGame: user available locally");
-      profile = accounts[user.email].profile;
+    var user = new User(req.body.username, req.body.password);
+    verifyUser(res, user, next);
+    //next
+    }, function (req, res, next) {
+      var username = req.body.username;
+      var profile;
+      if (username in accounts) {
+        // user lokal vorhanden --> nimm aktuellstes SaveGame
+        if (!doesProfileExist(username)) {
+          return sendServiceUnavailable(res, "Profile not found");
+        } else {
+          console.log("latestSaveGame: user available locally");
+          profile = accounts[username].profile;
 
-      // prüfe, welches Profil aktueller ist
-      if (isServerProfileMoreRecent(req.profile, profile)) {
-        // Server ist aktueller
-        console.log("latestSaveGame: Server is more recent");
-        sendGamestate(res, profile);
+          return sendGamestate(res, profile);
+
+        }
       } else {
-        // Client ist aktueller
-        console.log("latestSaveGame: Client is more recent");
-        sendGamestate(res, req.profile);
-      }
-    } else {
-      // Prüfe ob user in DB vorhanden
-      profile = getUserFromDatabase(req, res, username, next);
-
+        // Prüfe ob user in DB vorhanden
+        findUserWithoutVerification(req, res, username, next);
+        }
+    }, function(req, res, next) {
       if (isServerProfileMoreRecent(req.profile, profile)) {
         // Server ist aktueller
         console.log("latestSaveGame: Server is more recent");
@@ -162,7 +167,6 @@ server.post('/latestSaveGame',
         // DB-Client ist aktueller
         console.log("latestSaveGame: DB-Client is more recent");
         sendGameState(res, profile);
-      }
     }
   }
 );
@@ -228,30 +232,37 @@ function registerUserMongoDB(user, next) {
   });
 }
 
-function getUserFromDatabase(req, res, emailParam, next) {
-  dbo.collection(collectionName).findOne({email: emailParam}, function(err, result) {
-    if (err) throw err;
-    console.log("Found User: " + result.email);
-    req.profile = result.profile;
-    return result.profile;
+function findUserWithoutVerification(req, res, emailParam, next) {
+  if (!doesProfileExist(emailParam)) {
+    // SENDE FEHLER HIER
+  } else {
+    dbo.collection(collectionName).findOne({email: emailParam}, function(err, result) {
+      if (err) throw err;
+      console.log("Found User: " + result.email);
 
-    if (result == null) {
-      sendBadAuthentication(res, "No User found");
-    }
-  });
+      req.profile = result.profile;
+      return next();
+
+      if (result == null) {
+        sendBadAuthentication(res, "No User found");
+      }
+    });
+  }
 }
 
-function findUserWithoutVerification(req, res, emailParam, next) {
-  dbo.collection(collectionName).findOne({email: emailParam}, function(err, result) {
-    if (err) throw err;
-    console.log("Found User: " + result.email);
-    req.profile = result.profile;
-    return next();
+function doesProfileExist(username) {
+  console.log("doesProfileExist called");
+  if( 'profile' in accounts[username]) {
+  return (!isStringEmpty(accounts[username].profile) && !isStringBlank(accounts[username].profile));
+} else return false;
+}
 
-    if (result == null) {
-      sendBadAuthentication(res, "No User found");
-    }
-  });
+function isStringBlank(str) {
+    return (!str || /^\s*$/.test(str));
+}
+
+function isStringEmpty(str) {
+  return (!str || 0 === str.length);
 }
 
 function findUser(res, user, next) {
@@ -301,6 +312,11 @@ function sendBadRequest(res, error) {
 function sendErrorMessage(res, error) {
   res.send(200, {message: error});
   console.log(ERROR_TAG + error);
+}
+
+function sendServiceUnavailable(res, error) {
+  res.send(503, {message: error});
+  console.log(BAD_REQUEST_TAG + error);
 }
 
 function sendSuccessMessage(res, error) {
