@@ -14,8 +14,7 @@
     "secure-random": "^1.1.1"
   },
   "devDependencies": {},
-  "scripts": {
-    "test": "testmo",
+  "scripts": {    
     "start": "node server.js"
   },
   "repository": {
