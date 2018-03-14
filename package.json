@@ -1,0 +1,31 @@
+{
+  "name": "morest",
+  "version": "1.0.0",
+  "description": "More Options REST_API",
+  "main": "basic.js",
+  "dependencies": {
+    "base-64": "^0.1.0",
+    "bcrypt-nodejs": "0.0.3",
+    "mongodb": "^3.0.4",
+    "restify": "^6.3.4",
+    "secure-random": "^1.1.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "testmo",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HTWGameDevelopment/2017WS_More_Options_Server.git"
+  },
+  "keywords": [
+    "none"
+  ],
+  "author": "me",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/HTWGameDevelopment/2017WS_More_Options_Server/issues"
+  },
+  "homepage": "https://github.com/HTWGameDevelopment/2017WS_More_Options_Server#readme"
+}
