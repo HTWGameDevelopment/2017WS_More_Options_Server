@@ -1,8 +1,11 @@
 {
   "name": "morest",
   "version": "1.0.0",
+  "engines": {
+    "node": "6.10.3"
+  },
   "description": "More Options REST_API",
-  "main": "basic.js",
+  "main": "server.js",
   "dependencies": {
     "base-64": "^0.1.0",
     "bcrypt-nodejs": "0.0.3",
