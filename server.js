@@ -11,6 +11,9 @@ var BAD_REQUEST_TAG = "[BAD REQUEST]";
 var REGISTER_TAG = "[REGISTER]";
 var ERROR_TAG = "[ERROR]";
 var SUCCESS_TAG = "[SUCCESS]";
+var REGISTER_TAG = "[REGISTER]";
+var UPDATE_GAMESTATE_TAG ="[UPDATE GAMESTATE]";
+var LAST_SAVEGAME_TAG = "[LAST SAVEGAME]";
 
 
 //ServerData
@@ -30,17 +33,12 @@ var server = restify.createServer();
 server.use(restq.bodyParser());
 
 server.get('/', function(req, res, next) {
-  dbo.collection(collectionName).findOne({}, function(err, result) {
-      if (err) throw err;
-      console.log(result);
-      res.send(result);
-      return next();
-    });
+
 });
 
 server.post('/register',
   function(req, res, next) {
-    console.log("Call to register");
+    console.log(REGISTER_TAG, "Call to register");
     if(isRequestWellFormed(req)) {
         if(validateEmail(req.body.username)) return next();
         else sendBadRequest(res, "Invalid Email");
@@ -77,25 +75,23 @@ server.post('/register',
 
 server.post('/login',
     function(req,res,next) {
-      console.log("Call to login");
       if(isRequestWellFormed(req)) {
         var user = new User(req.body.username, req.body.password);
-
         verifyUser(res, user, next);
       } else sendBadRequest(res, "Invalid LoginData");
     }, function(req, res, next) {
       sendSuccessMessage(res, "Login successful");
+      console.log("[LOGIN] Verified login credentials of:" + req.body.username);
     }
 );
 
 server.post('/updateGamestate',
   function(req, res, next) {
-    console.log("Call to updateGamestate");
+    console.log(UPDATE_GAMESTATE_TAG, "Receivinginenging update by "+ req.body.username);
     if (isRequestWellFormed(req)
         && 'profile' in req.body) {
           var user = new User(req.body.username, req.body.password);
           var profile = req.body.profile;
-          console.log("ProfileLog: " + profile);
           verifyUser(res, user, next);
         } else {
           sendBadRequest(res, "Invalid Request");
@@ -112,8 +108,6 @@ server.post('/updateGamestate',
 
 server.get('/compare/:username',
   function(req, res, next) {
-    console.log("Call to compare");
-    console.log("ReqParamsUsername: " + req.params.username);
     // ist user mit der email lokal vorhanden
     var username = req.params.username;
     if (username in accounts) {
@@ -132,8 +126,6 @@ server.get('/compare/:username',
 
 server.post('/latestSaveGame',
   function(req, res, next) {
-    console.log("Call to latestSaveGame");
-    console.log("ReqParamsUsername: " + req.body.username);
     // ist user lokal vorhanden
     var user = new User(req.body.username, req.body.password);
     verifyUser(res, user, next);
@@ -246,7 +238,6 @@ function findUserWithoutVerification(req, res, emailParam, next) {
 
 
 function doesProfileExist(username) {
-  console.log("doesProfileExist called");
   var user = accounts[username];
   if( 'profile' in user) {
     return (!isStringEmpty(accounts[username].profile) && !isStringBlank(accounts[username].profile));
@@ -280,7 +271,6 @@ function updateUserProfile(emailParam, profileParam) {
   var newVal = { $set: {profile: profileParam}};
   dbo.collection(collectionName).updateOne(query, newVal, function(err) {
     if (err) throw err;
-    console.log("Updated UserProfile");
   });
 }
 
@@ -298,36 +288,36 @@ function isServerProfileMoreRecent(clientProfile, serverProfile) {
 
 function sendBadAuthentication(res, error) {
   res.send(401, {message: error});
-  console.log(BAD_REQUEST_TAG + error);
+  //console.log(BAD_REQUEST_TAG + error);
 }
 
 function sendStats(res, stats) {
   res.send(200, {message: stats});
-  console.log("STATS" + stats);
+  console.log("SENDING STATS TO SOMEONE YAY");
 }
 function sendBadRequest(res, error) {
   res.send(400, {message: error});
-  console.log(BAD_REQUEST_TAG + error);
+  //console.log(BAD_REQUEST_TAG + error);
 }
 
 function sendErrorMessage(res, error) {
   res.send(200, {message: error});
-  console.log(ERROR_TAG + error);
+  //console.log(ERROR_TAG + error);
 }
 
 function sendServiceUnavailable(res, error) {
   res.send(503, {message: error});
-  console.log(BAD_REQUEST_TAG + error);
+  //console.log(BAD_REQUEST_TAG + error);
 }
 
 function sendSuccessMessage(res, error) {
   res.send(200, {message: error});
-  console.log(SUCCESS_TAG + error);
+  //console.log(SUCCESS_TAG + error);
 }
 
 function sendGamestate(res, profileParam) {
   res.send(200, {profile: profileParam});
-  console.log("Gamestate sent successfully");
+  //console.log("Gamestate sent successfully");
 }
 
 function validateEmail(email) {
@@ -335,10 +325,9 @@ function validateEmail(email) {
   return re.test(email.toLowerCase());
 }
 
+//wtf ist diese funktion*(@andreas)
 function isRequestWellFormed(req) {
-  if (!('password' in req.body) || !('username' in req.body)) {
-    console.log('Invalid request! Field pw or username was not set!');
-    sendBadRequest(res, "No Password or username was sent");
+  if (!req.body.hasOwnProperty('password') || !req.body.hasOwnProperty('username')) {
     return false;
   }
   return true;
